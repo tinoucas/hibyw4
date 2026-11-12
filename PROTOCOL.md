@@ -93,9 +93,14 @@ The app also previews the curve with RBJ-cookbook biquads (`PeqTranClass::peakin
 `lowShelf`, `highShelf`, using `10^(g/40)` and `w0 = 2π f / fs`). On the Airoha
 path, only the parameters are sent. The device computes the coefficients itself.
 
-### Persisting (cmd 8, not implemented) ⚠
+### Persistence
 
-"Write PEQ to device" builds one blob (`PeqTranClass::makeAllPeqData`):
+Verified on a W4: settings sent with cmd 7 (SET) are kept after unplugging and
+replugging USB. No separate save step is needed.
+
+### "Write PEQ to device" (cmd 8, not implemented) ⚠
+
+It doesn't seem to be needed (see above). HiBy's app builds one blob (`PeqTranClass::makeAllPeqData`):
 
 ```
 [enabled u8][preamp int32 ×100][10 × band]

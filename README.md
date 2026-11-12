@@ -56,8 +56,11 @@ builds may not be allowed to reach `/dev/hidraw*`.
 ## Status
 
 The protocol is verified on a W4 for reads, live writes, preamp and enable, on macOS.
+Live writes are saved on the device: a preset loaded this way was still there after
+unplugging and replugging USB. You don't need to re-apply it after reconnecting.
+
 Not done yet:
 
 - Linux has not been tested.
-- It's unknown whether settings survive a power cycle. HiBy's separate "write to device"
-  (flash) command is not implemented; see `PROTOCOL.md`.
+- HiBy's separate "write to device" command is not implemented (see `PROTOCOL.md`). It
+  doesn't seem to be needed.
