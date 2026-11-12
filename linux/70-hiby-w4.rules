@@ -1,0 +1,6 @@
+# HiBy W4: let the logged-in user open its hidraw nodes (WebHID in Chromium, hidapi in Python).
+# Install:  sudo cp linux/70-hiby-w4.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload-rules && sudo udevadm trigger   (then replug the W4)
+# Keep the number below 73: "uaccess" is applied by systemd's 73-seat-late.rules.
+# Without systemd-logind, replace TAG+="uaccess" with: MODE="0660", GROUP="plugdev"
+KERNEL=="hidraw*", ATTRS{idVendor}=="32bb", ATTRS{idProduct}=="0004", TAG+="uaccess"
