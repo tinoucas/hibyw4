@@ -33,7 +33,7 @@ python3 -m venv .venv && .venv/bin/pip install hidapi
 .venv/bin/python hiby_peq.py list                     # find the device
 .venv/bin/python hiby_peq.py status                   # show current EQ
 .venv/bin/python hiby_peq.py dump > my-backup.txt     # save it as ParametricEQ.txt
-.venv/bin/python hiby_peq.py apply presets/xyz.txt    # load a preset and turn PEQ on
+.venv/bin/python hiby_peq.py apply presets/test-bass-shelf.txt  # load a preset and turn PEQ on
 .venv/bin/python hiby_peq.py enable | disable | flat
 ```
 
@@ -64,3 +64,16 @@ Not done yet:
 - Linux has not been tested.
 - HiBy's separate "write to device" command is not implemented (see `PROTOCOL.md`). It
   doesn't seem to be needed.
+
+## Disclaimer
+
+This is an independent project. It is not affiliated with, endorsed by or supported by
+HiBy. "HiBy" and "W4" are trademarks of their owners and are used here only to say which
+device this works with. The protocol was worked out from HiBy's publicly distributed
+apps, for interoperability only. No HiBy code, firmware or assets are included.
+
+Use at your own risk. The software is provided as is, without warranty (see `LICENSE`).
+
+## License
+
+MIT. See `LICENSE`.
