@@ -238,11 +238,23 @@ async function readDevice() {
 const sendBand = i => transact(CMD_SET, bandPayload(i, state.bands[i]));
 const sendPreamp = () => transact(CMD_SET, preampPayload(state.preamp));
 const sendEnable = () => transact(CMD_SET, enablePayload(state.enabled));
+let sendAllTimer;
 async function sendAll() {
-  await sendPreamp();
-  for (let i = 0; i < NBANDS; i++) await sendBand(i);
-  await sendEnable();
-  log("sent preamp, 10 bands and enable state");
+  const btn = $("sendAllBtn"), label = "Send all to device";
+  clearTimeout(sendAllTimer);
+  btn.disabled = true; btn.textContent = "Sending…";
+  let ok = false;
+  try {
+    await sendPreamp();
+    for (let i = 0; i < NBANDS; i++) await sendBand(i);
+    await sendEnable();
+    ok = true;
+    log("sent preamp, 10 bands and enable state");
+  } finally {
+    btn.textContent = ok ? "Sent ✓" : label;
+    btn.disabled = !device;
+    if (ok) sendAllTimer = setTimeout(() => { btn.textContent = label; }, 1200);
+  }
 }
 
 // Live sending: coalesce rapid edits so only the latest value per target is queued.
