@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>W4 PEQ</title>
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --text: #1b1b1a; --muted: #6b6b66; --line: #deded8;
+  --accent: #2f6fdb; --accent-weak: #2f6fdb22; --ok: #1f8a4c; --err: #c23b2b; --grid: #e7e7e2;
+  --curve: #2f6fdb; --band: #9a9a92;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --panel: #1d1d1b; --text: #ecebe6; --muted: #9a998f; --line: #34332f;
+    --accent: #6d9cf0; --accent-weak: #6d9cf026; --ok: #4cc27f; --err: #ee6b5a; --grid: #2a2a27;
+    --curve: #6d9cf0; --band: #6b6b63;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+.status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); } .dot.err { background: var(--err); }
+.spacer { flex: 1; }
+button, select, input { font: inherit; color: inherit; }
+button { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+canvas { width: 100%; height: 260px; display: block; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; }
+input[type=number], select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+input[type=number] { width: 84px; text-align: right; }
+input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+td { padding: 4px 6px; border-bottom: 1px solid var(--grid); }
+tr.off td:not(:first-child) { opacity: .5; }
+td.idx { color: var(--muted); width: 28px; font-variant-numeric: tabular-nums; }
+.bad { border-color: var(--err) !important; }
+textarea { width: 100%; min-height: 120px; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+.drop { outline: 2px dashed var(--accent); outline-offset: -6px; background: var(--accent-weak); }
+.muted { color: var(--muted); } .small { font-size: 12px; }
+#log { font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--muted); max-height: 140px; overflow: auto; white-space: pre-wrap; margin: 0; }
+.err { color: var(--err); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+@media (max-width: 640px) {
+  .bands th:nth-child(5), .bands td:nth-child(5) { display: none; }
+  input[type=number] { width: 70px; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>HiBy W4 PEQ</h1>
+  <span class="status"><span class="dot" id="dot"></span><span id="statusText">Not connected</span></span>
+  <span class="spacer"></span>
+  <button class="primary" id="connectBtn">Connect</button>
+  <button id="readBtn" disabled>Read from device</button>
+</header>
+
+<div class="panel" id="nohid" hidden>
+  <strong class="err">WebHID is not available in this browser.</strong>
+  Use Chrome, Edge or another Chromium browser. On Linux, also add a udev rule so the browser can open the hidraw device:
+  <code>SUBSYSTEM=="hidraw", ATTRS{idVendor}=="32bb", TAG+="uaccess"</code>
+</div>
+
+<section class="panel">
+  <div class="row" style="margin-bottom:8px">
+    <label class="toggle"><input type="checkbox" id="enable"> PEQ enabled</label>
+    <label class="inline">Preamp <input type="number" id="preamp" step="0.1" value="0"> dB</label>
+    <span class="spacer"></span>
+    <label class="inline small muted"><input type="checkbox" id="live" checked> Send changes live</label>
+    <label class="inline small muted"><input type="checkbox" id="unlock"> Allow values outside HiBy's limits</label>
+  </div>
+  <canvas id="graph" aria-label="Frequency response of the current EQ"></canvas>
+</section>
+
+<section class="panel">
+  <table class="bands">
+    <thead><tr><th>#</th><th>On</th><th>Type</th><th>Freq (Hz)</th><th>Q</th><th>Gain (dB)</th></tr></thead>
+    <tbody id="bands"></tbody>
+  </table>
+  <div class="row" style="margin-top:10px">
+    <button id="sendAllBtn" disabled>Send all to device</button>
+    <button id="flatBtn">Flat</button>
+    <span class="spacer"></span>
+    <span class="small muted">Limits: 20–20000 Hz · Q 0.2–20 · ±9 dB</span>
+  </div>
+</section>
+
+<section class="panel" id="importPanel">
+  <div class="row" style="margin-bottom:8px">
+    <strong>Import / export</strong>
+    <span class="small muted">AutoEQ, squig.link or Equalizer APO <em>ParametricEQ.txt</em>. Paste it below or drop a file here.</span>
+  </div>
+  <textarea id="peqText" spellcheck="false" placeholder="Preamp: -6.4 dB&#10;Filter 1: ON LSC Fc 105 Hz Gain 5.5 dB Q 0.70&#10;Filter 2: ON PK Fc 1000 Hz Gain 3.5 dB Q 1.41"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="importBtn">Load into editor</button>
+    <label class="inline"><input type="file" id="fileInput" accept=".txt,text/plain" hidden><button id="fileBtn" type="button">Open file…</button></label>
+    <button id="exportBtn">Export current</button>
+    <button id="downloadBtn">Download .txt</button>
+  </div>
+</section>
+
+<section class="panel">
+  <strong class="small">Log</strong>
+  <pre id="log"></pre>
+</section>
+</main>
+
+<script>
+// ---------- protocol (see PROTOCOL.md) ----------
+const VID = 0x32bb, PID = 0x0004, USAGE_PAGE = 0xff32, REPORT_ID = 5, PKT = 62;
+const CMD_SET = 7, CMD_GET = 9, OP_PREAMP = 1, OP_BAND = 2, OP_ENABLE = 3, GET_PREAMP = 0x0a, GET_ENABLE = 0x0b;
+const NBANDS = 10, DEFAULT_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const TYPES = [{ id: 0, name: "Low shelf", code: "LSC" }, { id: 1, name: "Peaking", code: "PK" }, { id: 2, name: "High shelf", code: "HSC" }];
+const LIMITS = { freq: [20, 20000], q: [0.2, 20], gain: [-9, 9] };
+const STATUS = ["ok", "invalid cmd", "invalid param", "not supported", "auth required", "auth failed", "internal error", "timeout", "checksum error"];
+
+function buildPacket(cmd, payload) {
+  const p = new Uint8Array(PKT);
+  p[0] = REPORT_ID;
+  new DataView(p.buffer).setUint32(1, cmd, true);
+  p.set(payload, 5);
+  let x = 0;
+  for (let i = 0; i < 60; i++) x ^= p[i];
+  p[60] = (x >> 8) & 0xff; p[61] = x & 0xff;
+  return p;
+}
+function bandPayload(i, b) {
+  const a = new Uint8Array(25), dv = new DataView(a.buffer);
+  a[0] = OP_BAND;
+  [i, b.on ? 1 : 0, b.type, Math.round(b.freq), Math.round(b.q * 100)].forEach((v, k) => dv.setUint32(1 + 4 * k, v, true));
+  dv.setInt32(21, Math.round(b.gain * 100), true);
+  return a;
+}
+function preampPayload(db) { const a = new Uint8Array(5); a[0] = OP_PREAMP; new DataView(a.buffer).setInt32(1, Math.trunc(db * 100), true); return a; }
+function enablePayload(on) { return new Uint8Array([OP_ENABLE, on ? 1 : 0]); }
+
+function parsePeq(text) {
+  const tmap = { PK: 1, PEQ: 1, LS: 0, LSC: 0, LSQ: 0, HS: 2, HSC: 2, HSQ: 2 };
+  let preamp = 0; const bands = [], errors = [];
+  for (const line of text.split(/\r?\n/)) {
+    let m = line.match(/^\s*Preamp\s*:\s*([-+\d.]+)\s*dB/i);
+    if (m) { preamp = parseFloat(m[1]); continue; }
+    m = line.match(/Filter\s*\d*\s*:\s*(ON|OFF)\s+(\w+)\s+Fc\s+([\d.]+)\s*Hz(?:\s+Gain\s+([-+\d.]+)\s*dB)?(?:\s+Q\s+([\d.]+))?/i);
+    if (!m) continue;
+    const t = tmap[m[2].toUpperCase()];
+    if (t === undefined) { errors.push(`unsupported filter type ${m[2]}: ${line.trim()}`); continue; }
+    bands.push({ on: m[1].toUpperCase() === "ON", type: t, freq: parseFloat(m[3]), gain: parseFloat(m[4] || 0), q: parseFloat(m[5] || 0.707) });
+  }
+  if (bands.length > NBANDS) errors.push(`${bands.length} filters, the W4 has ${NBANDS} bands`);
+  return { preamp, bands, errors };
+}
+function formatPeq(state) {
+  const lines = [`Preamp: ${state.preamp.toFixed(2)} dB`];
+  state.bands.forEach((b, i) => lines.push(`Filter ${i + 1}: ${b.on ? "ON" : "OFF"} ${TYPES[b.type].code} Fc ${Math.round(b.freq)} Hz Gain ${b.gain.toFixed(2)} dB Q ${b.q.toFixed(2)}`));
+  return lines.join("\n") + "\n";
+}
+function flatBand(i) { return { on: false, type: 1, freq: DEFAULT_FREQS[i], q: 0.71, gain: 0 }; }
+
+// RBJ cookbook biquads, for display only (the W4 computes its own coefficients)
+function biquad(b, fs) {
+  const A = Math.pow(10, b.gain / 40), w0 = 2 * Math.PI * b.freq / fs, c = Math.cos(w0), s = Math.sin(w0);
+  const al = s / (2 * b.q), sa = 2 * Math.sqrt(A) * al;
+  if (b.type === 1) return [1 + al * A, -2 * c, 1 - al * A, 1 + al / A, -2 * c, 1 - al / A];
+  if (b.type === 0) return [A * ((A + 1) - (A - 1) * c + sa), 2 * A * ((A - 1) - (A + 1) * c), A * ((A + 1) - (A - 1) * c - sa),
+    (A + 1) + (A - 1) * c + sa, -2 * ((A - 1) + (A + 1) * c), (A + 1) + (A - 1) * c - sa];
+  return [A * ((A + 1) + (A - 1) * c + sa), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - sa),
+    (A + 1) - (A - 1) * c + sa, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - sa];
+}
+function magDb(co, f, fs) {
+  const w = 2 * Math.PI * f / fs, c1 = Math.cos(w), s1 = Math.sin(w), c2 = Math.cos(2 * w), s2 = Math.sin(2 * w);
+  const nr = co[0] + co[1] * c1 + co[2] * c2, ni = -(co[1] * s1 + co[2] * s2);
+  const dr = co[3] + co[4] * c1 + co[5] * c2, di = -(co[4] * s1 + co[5] * s2);
+  return 10 * Math.log10((nr * nr + ni * ni) / (dr * dr + di * di));
+}
+// ---------- end protocol ----------
+
+const $ = id => document.getElementById(id);
+const state = { enabled: false, preamp: 0, bands: Array.from({ length: NBANDS }, (_, i) => flatBand(i)) };
+let device = null, queue = Promise.resolve();
+
+function log(msg, isErr) {
+  const el = $("log"), line = document.createElement("div");
+  line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+  if (isErr) line.className = "err";
+  el.prepend(line);
+}
+function setStatus(text, kind) { $("statusText").textContent = text; $("dot").className = "dot" + (kind ? " " + kind : ""); }
+
+// Serialize every transaction: send feature report, then read the reply.
+function transact(cmd, payload) {
+  const run = async () => {
+    if (!device) throw new Error("not connected");
+    const pkt = buildPacket(cmd, payload);
+    await device.sendFeatureReport(REPORT_ID, pkt.slice(1));
+    await new Promise(r => setTimeout(r, 15));
+    const dv = await device.receiveFeatureReport(REPORT_ID);
+    let r = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    if (r.length === PKT - 1) { const t = new Uint8Array(PKT); t[0] = REPORT_ID; t.set(r, 1); r = t; } // some platforms strip the id
+    for (let i = 1; i < 5; i++) if (r[i] !== pkt[i]) throw new Error("reply for another command: " + hex(r.slice(0, 8)));
+    if (r[5] !== 0) throw new Error(`device: ${STATUS[r[5]] || r[5]}`);
+    return r.slice(6);
+  };
+  const p = queue.then(run, run);
+  queue = p.catch(() => {});
+  return p;
+}
+const hex = a => Array.from(a, x => x.toString(16).padStart(2, "0")).join(" ");
+
+async function readDevice() {
+  const en = await transact(CMD_GET, [GET_ENABLE]);
+  state.enabled = en[1] === 1;
+  const pre = await transact(CMD_GET, [GET_PREAMP]);
+  state.preamp = new DataView(pre.buffer, pre.byteOffset).getInt32(1, true) / 100;
+  for (let i = 0; i < NBANDS; i++) {
+    const r = await transact(CMD_GET, [i]), dv = new DataView(r.buffer, r.byteOffset);
+    // reply order: freq, enabled, type, index, Q*100, gain*100
+    state.bands[i] = { freq: dv.getUint32(1, true), on: dv.getUint32(5, true) === 1, type: dv.getUint32(9, true),
+      q: dv.getUint32(17, true) / 100, gain: dv.getInt32(21, true) / 100 };
+  }
+  renderAll();
+  log(`read from device: PEQ ${state.enabled ? "on" : "off"}, preamp ${state.preamp} dB`);
+}
+
+const sendBand = i => transact(CMD_SET, bandPayload(i, state.bands[i]));
+const sendPreamp = () => transact(CMD_SET, preampPayload(state.preamp));
+const sendEnable = () => transact(CMD_SET, enablePayload(state.enabled));
+async function sendAll() {
+  await sendPreamp();
+  for (let i = 0; i < NBANDS; i++) await sendBand(i);
+  await sendEnable();
+  log("sent preamp, 10 bands and enable state");
+}
+
+// Live sending: coalesce rapid edits so only the latest value per target is queued.
+const pending = new Map();
+function schedule(key, fn) {
+  if (!device || !$("live").checked) return;
+  clearTimeout(pending.get(key));
+  pending.set(key, setTimeout(() => { pending.delete(key); fn().catch(e => log(e.message, true)); }, 60));
+}
+
+function inRange(k, v) { return $("unlock").checked || (v >= LIMITS[k][0] && v <= LIMITS[k][1]); }
+
+function renderBands() {
+  const tb = $("bands"); tb.innerHTML = "";
+  state.bands.forEach((b, i) => {
+    const tr = document.createElement("tr");
+    tr.className = b.on ? "" : "off";
+    tr.innerHTML = `<td class="idx">${i + 1}</td>
+      <td><input type="checkbox" aria-label="Band ${i + 1} on" ${b.on ? "checked" : ""}></td>
+      <td><select aria-label="Band ${i + 1} type">${TYPES.map(t => `<option value="${t.id}" ${t.id === b.type ? "selected" : ""}>${t.name}</option>`).join("")}</select></td>
+      <td><input type="number" data-k="freq" min="1" max="24000" step="1" value="${Math.round(b.freq)}" aria-label="Band ${i + 1} frequency"></td>
+      <td><input type="number" data-k="q" min="0.01" step="0.05" value="${b.q.toFixed(2)}" aria-label="Band ${i + 1} Q"></td>
+      <td><input type="number" data-k="gain" step="0.1" value="${b.gain.toFixed(1)}" aria-label="Band ${i + 1} gain"></td>`;
+    const [cb, sel] = [tr.querySelector("input[type=checkbox]"), tr.querySelector("select")];
+    cb.onchange = () => { b.on = cb.checked; tr.className = b.on ? "" : "off"; changed(i); };
+    sel.onchange = () => { b.type = +sel.value; changed(i); };
+    tr.querySelectorAll("input[type=number]").forEach(inp => {
+      inp.oninput = () => {
+        const v = parseFloat(inp.value), k = inp.dataset.k;
+        const ok = Number.isFinite(v) && inRange(k, v);
+        inp.classList.toggle("bad", !ok);
+        if (ok) { b[k] = v; changed(i); }
+      };
+    });
+    tb.appendChild(tr);
+  });
+}
+function changed(i) { drawGraph(); schedule("band" + i, () => sendBand(i)); }
+
+function renderAll() {
+  $("enable").checked = state.enabled;
+  $("preamp").value = state.preamp.toFixed(1);
+  renderBands(); drawGraph();
+}
+
+function drawGraph() {
+  const cv = $("graph"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+  const padL = 34, padB = 18, fMin = 20, fMax = 20000, dbR = 12, fs = 48000;
+  const x = f => padL + (W - padL - 6) * Math.log(f / fMin) / Math.log(fMax / fMin);
+  const y = d => 6 + (H - padB - 6) * (dbR - d) / (2 * dbR);
+  g.font = "11px system-ui, sans-serif"; g.fillStyle = col("--muted"); g.strokeStyle = col("--grid"); g.lineWidth = 1;
+  for (const f of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) {
+    g.beginPath(); g.moveTo(x(f), 6); g.lineTo(x(f), H - padB); g.stroke();
+    g.textAlign = "center"; g.fillText(f >= 1000 ? f / 1000 + "k" : f, x(f), H - 4);
+  }
+  for (let d = -dbR; d <= dbR; d += 6) {
+    g.strokeStyle = d === 0 ? col("--line") : col("--grid");
+    g.beginPath(); g.moveTo(padL, y(d)); g.lineTo(W - 6, y(d)); g.stroke();
+    g.textAlign = "right"; g.fillText((d > 0 ? "+" : "") + d, padL - 6, y(d) + 4);
+  }
+  const active = state.bands.filter(b => b.on && b.freq > 0 && b.q > 0 && b.freq < fs / 2).map(b => ({ b, co: biquad(b, fs) }));
+  const N = Math.max(200, Math.floor(W)), fAt = k => fMin * Math.pow(fMax / fMin, k / (N - 1));
+  g.strokeStyle = col("--band"); g.lineWidth = 1; g.setLineDash([3, 3]);
+  for (const { co } of active) {
+    g.beginPath();
+    for (let k = 0; k < N; k++) { const f = fAt(k); k ? g.lineTo(x(f), y(magDb(co, f, fs))) : g.moveTo(x(f), y(magDb(co, f, fs))); }
+    g.stroke();
+  }
+  g.setLineDash([]);
+  g.strokeStyle = col("--curve"); g.lineWidth = 2; g.globalAlpha = state.enabled ? 1 : 0.4;
+  g.beginPath();
+  for (let k = 0; k < N; k++) {
+    const f = fAt(k); let d = state.preamp;
+    for (const { co } of active) d += magDb(co, f, fs);
+    const yy = y(Math.max(-dbR, Math.min(dbR, d)));
+    k ? g.lineTo(x(f), yy) : g.moveTo(x(f), yy);
+  }
+  g.stroke(); g.globalAlpha = 1;
+}
+
+// ---------- device connection ----------
+async function useDevice(d) {
+  if (!d.opened) await d.open();
+  device = d;
+  setStatus(`Connected: ${d.productName}`, "on");
+  $("readBtn").disabled = $("sendAllBtn").disabled = false;
+  $("connectBtn").textContent = "Reconnect";
+  await readDevice();
+}
+function pickVendorInterface(list) {
+  return list.find(d => d.vendorId === VID && d.collections.some(c => c.usagePage === USAGE_PAGE));
+}
+$("connectBtn").onclick = async () => {
+  try {
+    const list = await navigator.hid.requestDevice({ filters: [{ vendorId: VID, productId: PID, usagePage: USAGE_PAGE }] });
+    const d = pickVendorInterface(list) || list[0];
+    if (!d) return;
+    await useDevice(d);
+  } catch (e) { setStatus("Error", "err"); log(e.message, true); }
+};
+$("readBtn").onclick = () => readDevice().catch(e => log(e.message, true));
+$("sendAllBtn").onclick = () => sendAll().catch(e => log(e.message, true));
+$("flatBtn").onclick = () => {
+  state.preamp = 0; state.bands = state.bands.map((_, i) => flatBand(i)); renderAll();
+  if (device && $("live").checked) sendAll().catch(e => log(e.message, true));
+};
+$("enable").onchange = () => { state.enabled = $("enable").checked; drawGraph(); schedule("enable", sendEnable); };
+$("preamp").oninput = () => {
+  const v = parseFloat($("preamp").value);
+  if (!Number.isFinite(v)) return;
+  state.preamp = v; drawGraph(); schedule("preamp", sendPreamp);
+};
+
+// ---------- import / export ----------
+async function importText(text) {
+  const { preamp, bands, errors } = parsePeq(text);
+  if (errors.length) { errors.forEach(e => log(e, true)); return; }
+  if (!bands.length) { log("no filters found in that text", true); return; }
+  const bad = bands.flatMap((b, i) => ["freq", "q", "gain"].filter(k => !inRange(k, b[k])).map(k => `filter ${i + 1} ${k}=${b[k]}`));
+  if (bad.length) { log(`outside HiBy's limits: ${bad.join(", ")}. Tick "Allow values outside HiBy's limits" to load anyway.`, true); return; }
+  state.preamp = preamp;
+  state.bands = Array.from({ length: NBANDS }, (_, i) => bands[i] || flatBand(i));
+  state.enabled = true;
+  renderAll();
+  log(`loaded ${bands.length} filters, preamp ${preamp} dB`);
+  if (device && $("live").checked) await sendAll().catch(e => log(e.message, true));
+}
+$("importBtn").onclick = () => importText($("peqText").value);
+$("fileBtn").onclick = () => $("fileInput").click();
+$("fileInput").onchange = async e => { const f = e.target.files[0]; if (f) { const t = await f.text(); $("peqText").value = t; importText(t); } e.target.value = ""; };
+$("exportBtn").onclick = () => { $("peqText").value = formatPeq(state); };
+$("downloadBtn").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([formatPeq(state)], { type: "text/plain" }));
+  a.download = "W4-ParametricEQ.txt"; a.click(); URL.revokeObjectURL(a.href);
+};
+const drop = $("importPanel");
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("drop"); };
+drop.ondragleave = () => drop.classList.remove("drop");
+drop.ondrop = async e => {
+  e.preventDefault(); drop.classList.remove("drop");
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const t = await f.text(); $("peqText").value = t; importText(t);
+};
+
+// ---------- startup ----------
+window.addEventListener("resize", drawGraph);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawGraph);
+renderAll();
+if (!("hid" in navigator)) {
+  $("nohid").hidden = false; $("connectBtn").disabled = true; setStatus("WebHID unavailable", "err");
+} else {
+  navigator.hid.addEventListener("disconnect", e => {
+    if (e.device === device) { device = null; setStatus("Disconnected", "err"); $("readBtn").disabled = $("sendAllBtn").disabled = true; }
+  });
+  navigator.hid.addEventListener("connect", e => { if (!device && pickVendorInterface([e.device])) useDevice(e.device).catch(err => log(err.message, true)); });
+  // reuse a previously granted device without a click
+  navigator.hid.getDevices().then(list => { const d = pickVendorInterface(list); if (d) useDevice(d).catch(e => log(e.message, true)); });
+}
+</script>
+</body>
+</html>
