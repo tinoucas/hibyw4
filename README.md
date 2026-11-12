@@ -15,11 +15,15 @@ or the page's "Allow values outside HiBy's limits".
 
 ## Web page
 
-Requires a Chromium-based browser (Chrome, Chromium, Edge, Brave, Helium…).
-Firefox and Safari don't support WebHID.
+**Hosted version: <https://tinoucas.github.io/hibyw4/>.** No install needed. On Linux you still
+need the udev rule below.
 
-1. Open `web/index.html` from disk. If your browser refuses, serve it with
-   `python3 -m http.server -d web 8000` and open <http://localhost:8000>.
+Requires a Chromium-based browser (Chrome, Chromium, Edge, Brave, Helium…).
+Firefox and Safari don't support WebHID. Everything runs in your browser: it talks to the W4
+over USB and sends nothing to any server.
+
+1. Open the hosted page, or open `web/index.html` from disk. If your browser refuses the
+   local file, serve it with `python3 -m http.server -d web 8000` and open <http://localhost:8000>.
 2. Click **Connect** and choose "HiBy W4". It reads the current EQ from the device.
 3. Edit bands or load a `ParametricEQ.txt`. With "Send changes live" ticked, every edit
    reaches the device immediately.
